@@ -52,7 +52,7 @@ function HomeContent() {
       // Optionally: set an error or redirect if invalid?
       // For now, just default back.
     }
-    return 1; // Default value
+    return 8485; // Default value
   };
 
   const [holding, setHolding] = useState(getHoldingFromParams);
