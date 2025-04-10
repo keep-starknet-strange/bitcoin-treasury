@@ -4,7 +4,15 @@ import { SolariBoard } from "./components/solari/SolariBoard";
 import { useState, useEffect, useMemo, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useBitcoinPrice } from "./hooks/useBitcoinPrice";
+import Link from 'next/link';
+import { useHoldingStore, initializeHoldingFromParams } from "../store/holdingStore"; // Import store
 // import { useDisplayLength } from "./components/useDisplayLength";
+
+// Define HoldingState interface mirroring the one in the store
+interface HoldingState {
+  holding: number;
+  setHolding: (newHolding: number) => void;
+}
 
 function formatCurrency(number: number, locale = "en-US", currency = "USD") {
   const formatter = new Intl.NumberFormat(locale, {
@@ -36,31 +44,26 @@ function HomeContent() {
   // const displayLength = useDisplayLength();
   const displayLength = 20; // Fallback to a fixed length for simplicity
 
-  // Use the custom hook for price data
   const { bitcoinPrice, priceDirection, error, countdown, isFetching } =
     useBitcoinPrice();
 
-  // Get holding from URL, default to 40
-  const getHoldingFromParams = () => {
-    const holdingParam = searchParams.get("holding");
-    if (holdingParam) {
-      const parsedHolding = parseFloat(holdingParam);
-      // Validate if it's a positive number
-      if (!isNaN(parsedHolding) && parsedHolding > 0) {
-        return parsedHolding;
-      }
-      // Optionally: set an error or redirect if invalid?
-      // For now, just default back.
-    }
-    return 8485; // Default value
-  };
+  // Use global state for holding with explicit type
+  const holding = useHoldingStore((state: HoldingState) => state.holding);
+  const setHolding = useHoldingStore((state: HoldingState) => state.setHolding);
 
-  const [holding, setHolding] = useState(getHoldingFromParams);
+  // Remove local holding state and getHoldingFromParams
+  // const [holding, setHolding] = useState(getHoldingFromParams);
   const [holdingValue, setHoldingValue] = useState(0);
   const [currentRowIndex, setCurrentRowIndex] = useState(-1);
   const [ticker, setTicker] = useState(searchParams.get("ticker") || "XYZ");
   // Removed inputError as it wasn't used
   // Removed explicit error, countdown, isFetching states - now handled by hook
+
+  // Initialize store from URL params once on mount
+  useEffect(() => {
+      initializeHoldingFromParams(searchParams);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Run only once
 
   // Initialize loading rows immediately
   const loadingBoardRows = useMemo(
@@ -68,15 +71,10 @@ function HomeContent() {
     [displayLength]
   );
 
-  // Update holding value when Bitcoin price changes
+  // Update holding value display when price or global holding changes
   useEffect(() => {
     setHoldingValue(bitcoinPrice * holding);
   }, [bitcoinPrice, holding]);
-
-  // Update holding if URL param changes
-  useEffect(() => {
-    setHolding(getHoldingFromParams());
-  }, [searchParams]); // Re-run when searchParams change
 
   // Format the display values
   const displayValue = error
@@ -84,7 +82,7 @@ function HomeContent() {
     : `${formatCurrency(bitcoinPrice).toString()}${priceDirection ? ` ${priceDirection}` : ""}`;
 
   const holdingDisplay = error ? "Error" : formatCurrency(holdingValue);
-  const holdingDisplayBTC = error ? "Error" : `${holding} BTC`;
+  const holdingDisplayBTC = error ? "Error" : `${holding.toFixed(2)} BTC`; // Format slightly
 
   // Define the final board rows
   const finalBoardRows = useMemo(
@@ -142,7 +140,7 @@ function HomeContent() {
   }, [isFetching, currentRowIndex, finalBoardRows.length, error]); // Added error dependency
 
   return (
-    <div className="w-full h-full font-mono flex flex-col justify-center items-center">
+    <div className="w-full h-full font-mono flex flex-col justify-center items-center px-4">
       {/* Input field for holding - Optional feature */}
       {/* Consider adding an input field here if direct editing is desired */}
 
@@ -150,9 +148,9 @@ function HomeContent() {
         <SolariBoard rows={currentBoardRows} className="relative" />
       </div>
 
-      <div className="flex flex-rows w-full justify-between opacity-0 transition-opacity duration-300 animate-fadeIn">
+      <div className="flex flex-col sm:flex-row w-full max-w-3xl items-center justify-between opacity-0 transition-opacity duration-300 animate-fadeIn mt-4">
         {/* Status indicator */}
-        <div className="flex items-center justify-center gap-2 text-zinc-400 mt-2 sm:mt-4">
+        <div className="flex items-center justify-center gap-2 text-zinc-400 mb-2 sm:mb-0">
           <div
             className={`w-1.5 sm:w-2 h-1.5 sm:h-2 rounded-full ${
               isFetching
@@ -168,6 +166,12 @@ function HomeContent() {
                 }`}
           </div>
         </div>
+
+        {/* Link to DCA Simulator - no longer passes holding */}
+        <Link href={`/dca-simulator`}
+              className="text-xs sm:text-sm text-blue-400 hover:text-blue-300 underline">
+          Project Future DCA →
+        </Link>
       </div>
     </div>
   );
